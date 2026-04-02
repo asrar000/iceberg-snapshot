@@ -59,6 +59,14 @@ the `sample_events` table into the `db` namespace under `warehouse/`. After the
 writes finish, the job prints the Iceberg snapshot metadata table to the
 console.
 
+It also compares snapshot 1 and snapshot 3 of `local.db.sample_events` and
+prints:
+
+- identical full rows shared by both snapshots
+- rows with the same `record_id` but changed values
+- rows that only exist in snapshot 1
+- rows that only exist in snapshot 3
+
 After the writes complete, you can inspect the snapshot history with:
 
 ```sql

@@ -110,6 +110,122 @@ def print_snapshot_table(spark, catalog: str, namespace: str, table_name: str) -
     snapshots_df.show(truncate=False)
 
 
+def read_snapshot_dataframe(spark, table_identifier: str, snapshot_id: int):
+    return (
+        spark.read.format("iceberg")
+        .option("snapshot-id", snapshot_id)
+        .load(table_identifier)
+    )
+
+
+def build_changed_rows_dataframe(left_df, right_df, key_column: str):
+    comparable_columns = [column for column in left_df.columns if column != key_column]
+
+    left_alias = left_df.alias("left")
+    right_alias = right_df.alias("right")
+
+    difference_condition = None
+    for column in comparable_columns:
+        column_diff = left_alias[column] != right_alias[column]
+        difference_condition = (
+            column_diff
+            if difference_condition is None
+            else difference_condition | column_diff
+        )
+
+    if difference_condition is None:
+        raise ValueError("No comparable columns were found for snapshot comparison.")
+
+    select_columns = [left_alias[key_column].alias(key_column)]
+    for column in comparable_columns:
+        select_columns.append(left_alias[column].alias(f"{column}_snapshot_left"))
+        select_columns.append(right_alias[column].alias(f"{column}_snapshot_right"))
+
+    return (
+        left_alias.join(right_alias, on=key_column, how="inner")
+        .where(difference_condition)
+        .select(*select_columns)
+        .orderBy(key_column)
+    )
+
+
+def print_snapshot_similarity_and_difference(
+    spark,
+    catalog: str,
+    namespace: str,
+    table_name: str,
+    left_position: int = 1,
+    right_position: int = 3,
+    key_column: str = "record_id",
+) -> None:
+    snapshots_table = build_snapshots_table_name(catalog, namespace, table_name)
+    snapshot_rows = (
+        spark.sql(
+            f"""
+            SELECT committed_at, snapshot_id, parent_id, operation
+            FROM {snapshots_table}
+            ORDER BY committed_at
+            """
+        )
+        .collect()
+    )
+
+    if len(snapshot_rows) < max(left_position, right_position):
+        raise ValueError(
+            f"Need at least {max(left_position, right_position)} snapshots to compare "
+            f"positions {left_position} and {right_position}, but found {len(snapshot_rows)}."
+        )
+
+    left_snapshot = snapshot_rows[left_position - 1]
+    right_snapshot = snapshot_rows[right_position - 1]
+    table_identifier = build_table_name(catalog, namespace, table_name)
+
+    left_df = read_snapshot_dataframe(spark, table_identifier, left_snapshot.snapshot_id)
+    right_df = read_snapshot_dataframe(spark, table_identifier, right_snapshot.snapshot_id)
+
+    similar_rows = left_df.intersect(right_df).orderBy(key_column)
+    left_only_rows = left_df.exceptAll(right_df).orderBy(key_column)
+    right_only_rows = right_df.exceptAll(left_df).orderBy(key_column)
+    changed_rows = build_changed_rows_dataframe(left_df, right_df, key_column)
+
+    print(
+        "Comparing snapshot positions "
+        f"{left_position} and {right_position} for {table_identifier}:"
+    )
+    print(
+        f"Snapshot {left_position}: id={left_snapshot.snapshot_id}, "
+        f"committed_at={left_snapshot.committed_at}, "
+        f"operation={left_snapshot.operation}"
+    )
+    print(
+        f"Snapshot {right_position}: id={right_snapshot.snapshot_id}, "
+        f"committed_at={right_snapshot.committed_at}, "
+        f"operation={right_snapshot.operation}"
+    )
+
+    print(
+        "Similarity summary: "
+        f"{similar_rows.count()} identical full rows exist in both snapshots."
+    )
+    similar_rows.show(20, truncate=False)
+
+    print(
+        "Difference summary: "
+        f"{changed_rows.count()} shared {key_column} values changed, "
+        f"{left_only_rows.count()} rows exist only in snapshot {left_position}, "
+        f"and {right_only_rows.count()} rows exist only in snapshot {right_position}."
+    )
+
+    print(f"Rows with changed values for shared {key_column}s:")
+    changed_rows.show(20, truncate=False)
+
+    print(f"Rows only in snapshot {left_position}:")
+    left_only_rows.show(20, truncate=False)
+
+    print(f"Rows only in snapshot {right_position}:")
+    right_only_rows.show(20, truncate=False)
+
+
 def write_csv_files_to_iceberg(
     input_dir: Path = OUTPUT_DIR,
     catalog: str = DEFAULT_CATALOG,
@@ -167,6 +283,7 @@ def write_csv_files_to_iceberg(
             )
 
         print_snapshot_table(spark, catalog, namespace, table_name)
+        print_snapshot_similarity_and_difference(spark, catalog, namespace, table_name)
         return target_table
     finally:
         spark.stop()
