@@ -10,6 +10,15 @@
 6. prints the Iceberg snapshot metadata table
 7. prints the similarity and dissimilarity between snapshot 1 and snapshot 3
 
+The workflow now uses fixed in-code defaults in [main.py](/home/w3e21/assingments/iceberg-snapshot/main.py):
+
+- input directory: `data/sample_csvs`
+- catalog: `local`
+- namespace: `db`
+- table: `sample_events`
+- warehouse: `warehouse/`
+- Spark master: `local[*]`
+
 Generated CSV files are written to `data/sample_csvs/`.
 
 CSV schema:
@@ -36,10 +45,10 @@ The files are generated as snapshot-like datasets for comparison work:
 To run the full workflow, use:
 
 ```bash
-python3 main.py --dry-run
+python3 main.py
 ```
 
-The dry run shows the planned snapshot writes into the single Iceberg table:
+At startup the script prints the planned snapshot writes into the single Iceberg table:
 
 ```text
 /home/w3e21/assingments/iceberg-snapshot/data/sample_csvs/sample_1.csv -> local.db.sample_events (snapshot 1)
@@ -54,7 +63,7 @@ environment that already has PySpark plus the matching Iceberg runtime JAR for
 your Spark version:
 
 ```bash
-spark-submit main.py
+python3 main.py
 ```
 
 The job creates a local Hadoop-backed Iceberg catalog named `local` and writes
