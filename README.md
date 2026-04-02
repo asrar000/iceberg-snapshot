@@ -23,6 +23,12 @@ event_ts: timestamp
 
 Each CSV file contains the same schema and exactly 1,000 data rows.
 
+The files are generated as snapshot-like datasets for comparison work:
+
+- 600 rows are identical across all 5 CSV files
+- 250 rows reuse the same `record_id` values but change selected columns across files
+- 150 rows are unique to each CSV file
+
 To generate the CSVs and then write each CSV individually to its own Iceberg
 table, run:
 
