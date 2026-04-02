@@ -108,11 +108,3 @@ def generate_sample_csvs(output_dir: Path = OUTPUT_DIR) -> None:
                 writer.writerow(build_unique_row(record_id, snapshot_index))
 
         print(f"Created {output_path} with {ROWS_PER_FILE} rows")
-
-
-def main() -> None:
-    generate_sample_csvs()
-
-
-if __name__ == "__main__":
-    main()

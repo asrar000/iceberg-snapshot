@@ -4,7 +4,19 @@ import argparse
 from pathlib import Path
 
 from scripts.generate_sample_csvs import generate_sample_csvs
-from scripts.load_csvs_to_iceberg import write_csv_files_to_iceberg
+from scripts.load_csvs_to_iceberg import (
+    PYSPARK_MISSING_MESSAGE,
+    build_spark_schema,
+    build_spark_session,
+    build_table_name,
+    create_namespace_if_missing,
+    describe_planned_writes,
+    load_csv_as_dataframe,
+    print_planned_writes,
+    print_snapshot_similarity_and_difference,
+    print_snapshot_table,
+    write_dataframe_to_iceberg,
+)
 from scripts.sample_dataset import (
     DEFAULT_CATALOG,
     DEFAULT_NAMESPACE,
@@ -68,19 +80,65 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
+    target_table = build_table_name(args.catalog, args.namespace, args.table)
 
     if not args.skip_generate:
+        print("Generating 5 CSV files with the same schema and snapshot-style overlap...")
         generate_sample_csvs(args.input_dir)
 
-    write_csv_files_to_iceberg(
+    planned_writes = describe_planned_writes(
         input_dir=args.input_dir,
         catalog=args.catalog,
         namespace=args.namespace,
         table_name=args.table,
-        warehouse=args.warehouse,
-        master=args.master,
-        dry_run=args.dry_run,
     )
+
+    print(f"Target Iceberg table: {target_table}")
+
+    if args.dry_run:
+        print_planned_writes(planned_writes)
+        return
+
+    try:
+        spark = build_spark_session(
+            catalog=args.catalog,
+            warehouse=args.warehouse,
+            master=args.master,
+        )
+        schema = build_spark_schema()
+    except ModuleNotFoundError as exc:
+        if exc.name == "pyspark":
+            raise SystemExit(PYSPARK_MISSING_MESSAGE) from exc
+        raise
+
+    try:
+        create_namespace_if_missing(spark, args.catalog, args.namespace)
+
+        for snapshot_index, csv_path, table_identifier in planned_writes:
+            print(f"Loading {csv_path.name} as a DataFrame...")
+            dataframe = load_csv_as_dataframe(spark, csv_path, schema)
+            print(
+                f"Writing {csv_path.name} to {table_identifier} "
+                f"as snapshot {snapshot_index}..."
+            )
+            write_dataframe_to_iceberg(
+                spark=spark,
+                dataframe=dataframe,
+                table_identifier=table_identifier,
+                snapshot_index=snapshot_index,
+            )
+
+        print_snapshot_table(spark, args.catalog, args.namespace, args.table)
+        print_snapshot_similarity_and_difference(
+            spark,
+            args.catalog,
+            args.namespace,
+            args.table,
+            left_position=1,
+            right_position=3,
+        )
+    finally:
+        spark.stop()
 
 
 if __name__ == "__main__":
