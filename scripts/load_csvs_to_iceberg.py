@@ -7,6 +7,7 @@ try:
         DATE_PATTERN,
         DEFAULT_CATALOG,
         DEFAULT_NAMESPACE,
+        DEFAULT_TABLE_NAME,
         OUTPUT_DIR,
         SCHEMA_FIELDS,
         TIMESTAMP_PATTERN,
@@ -18,6 +19,7 @@ except ImportError:
         DATE_PATTERN,
         DEFAULT_CATALOG,
         DEFAULT_NAMESPACE,
+        DEFAULT_TABLE_NAME,
         OUTPUT_DIR,
         SCHEMA_FIELDS,
         TIMESTAMP_PATTERN,
@@ -69,35 +71,50 @@ def build_spark_session(catalog: str, warehouse: Path, master: str):
     )
 
 
-def build_table_name(csv_path: Path, catalog: str, namespace: str) -> str:
-    return f"{catalog}.{namespace}.{csv_path.stem}"
+def build_table_name(catalog: str, namespace: str, table_name: str) -> str:
+    return f"{catalog}.{namespace}.{table_name}"
 
 
-def describe_planned_writes(input_dir: Path, catalog: str, namespace: str) -> list[tuple[Path, str]]:
+def describe_planned_writes(
+    input_dir: Path,
+    catalog: str,
+    namespace: str,
+    table_name: str,
+) -> list[tuple[int, Path, str]]:
     csv_paths = discover_sample_csv_paths(input_dir)
     if not csv_paths:
         raise FileNotFoundError(f"No sample CSV files found in {input_dir}")
 
+    target_table = build_table_name(catalog, namespace, table_name)
     return [
-        (csv_path, build_table_name(csv_path, catalog, namespace))
-        for csv_path in csv_paths
+        (snapshot_index, csv_path, target_table)
+        for snapshot_index, csv_path in enumerate(csv_paths, start=1)
     ]
+
+
+def iceberg_table_exists(spark, table_identifier: str) -> bool:
+    return spark.catalog.tableExists(table_identifier)
 
 
 def write_csv_files_to_iceberg(
     input_dir: Path = OUTPUT_DIR,
     catalog: str = DEFAULT_CATALOG,
     namespace: str = DEFAULT_NAMESPACE,
+    table_name: str = DEFAULT_TABLE_NAME,
     warehouse: Path = WAREHOUSE_DIR,
     master: str = "local[*]",
     dry_run: bool = False,
-) -> list[str]:
-    planned_writes = describe_planned_writes(input_dir, catalog, namespace)
+) -> str:
+    planned_writes = describe_planned_writes(input_dir, catalog, namespace, table_name)
+    target_table = build_table_name(catalog, namespace, table_name)
 
     if dry_run:
-        for csv_path, table_name in planned_writes:
-            print(f"Would write {csv_path} -> {table_name}")
-        return [table_name for _, table_name in planned_writes]
+        for snapshot_index, csv_path, table_identifier in planned_writes:
+            print(
+                f"Would write {csv_path} -> {table_identifier} "
+                f"(snapshot {snapshot_index})"
+            )
+        return target_table
 
     try:
         spark = build_spark_session(catalog=catalog, warehouse=warehouse, master=master)
@@ -110,12 +127,13 @@ def write_csv_files_to_iceberg(
         raise
 
     schema = build_spark_schema()
-    written_tables: list[str] = []
 
     try:
+        from pyspark.sql import functions as F
+
         spark.sql(f"CREATE NAMESPACE IF NOT EXISTS {catalog}.{namespace}")
 
-        for csv_path, table_name in planned_writes:
+        for snapshot_index, csv_path, table_identifier in planned_writes:
             dataframe = (
                 spark.read.option("header", True)
                 .option("dateFormat", DATE_PATTERN)
@@ -124,11 +142,17 @@ def write_csv_files_to_iceberg(
                 .csv(str(csv_path))
             )
 
-            dataframe.writeTo(table_name).using("iceberg").createOrReplace()
-            written_tables.append(table_name)
-            print(f"Wrote {csv_path.name} to {table_name}")
+            if snapshot_index == 1 and not iceberg_table_exists(spark, table_identifier):
+                dataframe.writeTo(table_identifier).using("iceberg").create()
+            else:
+                dataframe.writeTo(table_identifier).overwrite(F.lit(True))
 
-        return written_tables
+            print(
+                f"Wrote {csv_path.name} to {table_identifier} "
+                f"as snapshot {snapshot_index}"
+            )
+
+        return target_table
     finally:
         spark.stop()
 

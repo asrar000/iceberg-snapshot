@@ -29,21 +29,21 @@ The files are generated as snapshot-like datasets for comparison work:
 - 250 rows reuse the same `record_id` values but change selected columns across files
 - 150 rows are unique to each CSV file
 
-To generate the CSVs and then write each CSV individually to its own Iceberg
-table, run:
+To generate the CSVs and then write all 5 files into a single Iceberg table as
+successive snapshots, run:
 
 ```bash
 python3 main.py --dry-run
 ```
 
-The dry run shows the planned mappings:
+The dry run shows the planned snapshot writes:
 
 ```text
-data/sample_csvs/sample_1.csv -> local.db.sample_1
-data/sample_csvs/sample_2.csv -> local.db.sample_2
-data/sample_csvs/sample_3.csv -> local.db.sample_3
-data/sample_csvs/sample_4.csv -> local.db.sample_4
-data/sample_csvs/sample_5.csv -> local.db.sample_5
+/home/w3e21/assingments/iceberg-snapshot/data/sample_csvs/sample_1.csv -> local.db.sample_events (snapshot 1)
+/home/w3e21/assingments/iceberg-snapshot/data/sample_csvs/sample_2.csv -> local.db.sample_events (snapshot 2)
+/home/w3e21/assingments/iceberg-snapshot/data/sample_csvs/sample_3.csv -> local.db.sample_events (snapshot 3)
+/home/w3e21/assingments/iceberg-snapshot/data/sample_csvs/sample_4.csv -> local.db.sample_events (snapshot 4)
+/home/w3e21/assingments/iceberg-snapshot/data/sample_csvs/sample_5.csv -> local.db.sample_events (snapshot 5)
 ```
 
 To perform the actual Iceberg writes, run the script through a Spark
@@ -55,4 +55,10 @@ spark-submit main.py
 ```
 
 The job creates a local Hadoop-backed Iceberg catalog named `local` and writes
-the tables into the `db` namespace under `warehouse/`.
+the `sample_events` table into the `db` namespace under `warehouse/`.
+
+After the writes complete, you can inspect the snapshot history with:
+
+```sql
+SELECT * FROM local.db.sample_events.snapshots;
+```

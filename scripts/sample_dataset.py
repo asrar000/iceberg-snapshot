@@ -20,6 +20,7 @@ if UNIQUE_ROWS_PER_FILE <= 0:
 
 DEFAULT_CATALOG = "local"
 DEFAULT_NAMESPACE = "db"
+DEFAULT_TABLE_NAME = "sample_events"
 
 SCHEMA_FIELDS = [
     ("record_id", "int"),

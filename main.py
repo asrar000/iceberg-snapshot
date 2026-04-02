@@ -8,6 +8,7 @@ from scripts.load_csvs_to_iceberg import write_csv_files_to_iceberg
 from scripts.sample_dataset import (
     DEFAULT_CATALOG,
     DEFAULT_NAMESPACE,
+    DEFAULT_TABLE_NAME,
     OUTPUT_DIR,
     WAREHOUSE_DIR,
 )
@@ -16,8 +17,8 @@ from scripts.sample_dataset import (
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
-            "Generate sample CSV files and write each CSV into its own Iceberg "
-            "table."
+            "Generate sample CSV files and write them as successive snapshots "
+            "into a single Iceberg table."
         )
     )
     parser.add_argument(
@@ -35,6 +36,11 @@ def parse_args() -> argparse.Namespace:
         "--namespace",
         default=DEFAULT_NAMESPACE,
         help="Iceberg namespace (database) to create tables in.",
+    )
+    parser.add_argument(
+        "--table",
+        default=DEFAULT_TABLE_NAME,
+        help="Iceberg table name that will receive all CSV snapshots.",
     )
     parser.add_argument(
         "--warehouse",
@@ -55,7 +61,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--dry-run",
         action="store_true",
-        help="Print the planned CSV-to-table writes without starting Spark.",
+        help="Print the planned snapshot writes without starting Spark.",
     )
     return parser.parse_args()
 
@@ -70,6 +76,7 @@ def main() -> None:
         input_dir=args.input_dir,
         catalog=args.catalog,
         namespace=args.namespace,
+        table_name=args.table,
         warehouse=args.warehouse,
         master=args.master,
         dry_run=args.dry_run,
