@@ -75,6 +75,10 @@ def build_table_name(catalog: str, namespace: str, table_name: str) -> str:
     return f"{catalog}.{namespace}.{table_name}"
 
 
+def build_snapshots_table_name(catalog: str, namespace: str, table_name: str) -> str:
+    return f"{build_table_name(catalog, namespace, table_name)}.snapshots"
+
+
 def describe_planned_writes(
     input_dir: Path,
     catalog: str,
@@ -94,6 +98,16 @@ def describe_planned_writes(
 
 def iceberg_table_exists(spark, table_identifier: str) -> bool:
     return spark.catalog.tableExists(table_identifier)
+
+
+def print_snapshot_table(spark, catalog: str, namespace: str, table_name: str) -> None:
+    snapshots_table = build_snapshots_table_name(catalog, namespace, table_name)
+    snapshots_df = spark.sql(
+        f"SELECT * FROM {snapshots_table} ORDER BY committed_at"
+    )
+
+    print(f"Snapshot table for {build_table_name(catalog, namespace, table_name)}:")
+    snapshots_df.show(truncate=False)
 
 
 def write_csv_files_to_iceberg(
@@ -152,6 +166,7 @@ def write_csv_files_to_iceberg(
                 f"as snapshot {snapshot_index}"
             )
 
+        print_snapshot_table(spark, catalog, namespace, table_name)
         return target_table
     finally:
         spark.stop()

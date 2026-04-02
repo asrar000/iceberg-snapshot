@@ -55,7 +55,9 @@ spark-submit main.py
 ```
 
 The job creates a local Hadoop-backed Iceberg catalog named `local` and writes
-the `sample_events` table into the `db` namespace under `warehouse/`.
+the `sample_events` table into the `db` namespace under `warehouse/`. After the
+writes finish, the job prints the Iceberg snapshot metadata table to the
+console.
 
 After the writes complete, you can inspect the snapshot history with:
 
