@@ -20,3 +20,33 @@ is_priority: boolean
 event_date: date
 event_ts: timestamp
 ```
+
+Each CSV file contains the same schema and exactly 1,000 data rows.
+
+To generate the CSVs and then write each CSV individually to its own Iceberg
+table, run:
+
+```bash
+python3 main.py --dry-run
+```
+
+The dry run shows the planned mappings:
+
+```text
+data/sample_csvs/sample_1.csv -> local.db.sample_1
+data/sample_csvs/sample_2.csv -> local.db.sample_2
+data/sample_csvs/sample_3.csv -> local.db.sample_3
+data/sample_csvs/sample_4.csv -> local.db.sample_4
+data/sample_csvs/sample_5.csv -> local.db.sample_5
+```
+
+To perform the actual Iceberg writes, run the script through a Spark
+environment that already has PySpark plus the matching Iceberg runtime JAR for
+your Spark version:
+
+```bash
+spark-submit main.py
+```
+
+The job creates a local Hadoop-backed Iceberg catalog named `local` and writes
+the tables into the `db` namespace under `warehouse/`.

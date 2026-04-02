@@ -5,25 +5,26 @@ import random
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
-
-OUTPUT_DIR = Path("data/sample_csvs")
-FILE_COUNT = 5
-ROWS_PER_FILE = 1000
-SEED = 42
-
-HEADER = [
-    "record_id",
-    "customer_id",
-    "product_category",
-    "region",
-    "amount",
-    "is_priority",
-    "event_date",
-    "event_ts",
-]
-
-PRODUCT_CATEGORIES = ["books", "electronics", "fashion", "grocery", "home"]
-REGIONS = ["north", "south", "east", "west", "central"]
+try:
+    from .sample_dataset import (
+        FILE_COUNT,
+        HEADER,
+        OUTPUT_DIR,
+        PRODUCT_CATEGORIES,
+        REGIONS,
+        ROWS_PER_FILE,
+        SEED,
+    )
+except ImportError:
+    from sample_dataset import (
+        FILE_COUNT,
+        HEADER,
+        OUTPUT_DIR,
+        PRODUCT_CATEGORIES,
+        REGIONS,
+        ROWS_PER_FILE,
+        SEED,
+    )
 
 
 def build_row(record_id: int, rng: random.Random) -> list[object]:
@@ -47,13 +48,13 @@ def build_row(record_id: int, rng: random.Random) -> list[object]:
     ]
 
 
-def main() -> None:
+def generate_sample_csvs(output_dir: Path = OUTPUT_DIR) -> None:
     rng = random.Random(SEED)
-    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    output_dir.mkdir(parents=True, exist_ok=True)
 
     record_id = 1
     for file_index in range(1, FILE_COUNT + 1):
-        output_path = OUTPUT_DIR / f"sample_{file_index}.csv"
+        output_path = output_dir / f"sample_{file_index}.csv"
         with output_path.open("w", newline="", encoding="utf-8") as csv_file:
             writer = csv.writer(csv_file)
             writer.writerow(HEADER)
@@ -62,6 +63,10 @@ def main() -> None:
                 record_id += 1
 
         print(f"Created {output_path} with {ROWS_PER_FILE} rows")
+
+
+def main() -> None:
+    generate_sample_csvs()
 
 
 if __name__ == "__main__":
