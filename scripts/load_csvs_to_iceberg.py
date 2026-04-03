@@ -3,6 +3,32 @@ from __future__ import annotations
 from pathlib import Path
 
 try:
+    from pyspark.sql import SparkSession, functions as F
+    from pyspark.sql.types import (
+        BooleanType,
+        DateType,
+        DoubleType,
+        IntegerType,
+        StringType,
+        StructField,
+        StructType,
+        TimestampType,
+    )
+    _PYSPARK_IMPORT_ERROR = None
+except ModuleNotFoundError as exc:
+    SparkSession = None
+    F = None
+    BooleanType = None
+    DateType = None
+    DoubleType = None
+    IntegerType = None
+    StringType = None
+    StructField = None
+    StructType = None
+    TimestampType = None
+    _PYSPARK_IMPORT_ERROR = exc
+
+try:
     from .sample_dataset import (
         DATE_PATTERN,
         SCHEMA_FIELDS,
@@ -23,17 +49,13 @@ PYSPARK_MISSING_MESSAGE = (
 )
 
 
+def ensure_pyspark_available() -> None:
+    if _PYSPARK_IMPORT_ERROR is not None:
+        raise ModuleNotFoundError("pyspark") from _PYSPARK_IMPORT_ERROR
+
+
 def build_spark_schema():
-    from pyspark.sql.types import (
-        BooleanType,
-        DateType,
-        DoubleType,
-        IntegerType,
-        StringType,
-        StructField,
-        StructType,
-        TimestampType,
-    )
+    ensure_pyspark_available()
 
     type_map = {
         "int": IntegerType(),
@@ -49,7 +71,7 @@ def build_spark_schema():
 
 
 def build_spark_session(catalog: str, warehouse: Path, master: str):
-    from pyspark.sql import SparkSession
+    ensure_pyspark_available()
 
     warehouse_path = warehouse.resolve()
     return (
@@ -118,7 +140,7 @@ def load_csv_as_dataframe(spark, csv_path: Path, schema):
 
 
 def write_dataframe_to_iceberg(spark, dataframe, table_identifier: str, snapshot_index: int) -> None:
-    from pyspark.sql import functions as F
+    ensure_pyspark_available()
 
     if snapshot_index == 1 and not iceberg_table_exists(spark, table_identifier):
         dataframe.writeTo(table_identifier).using("iceberg").create()
