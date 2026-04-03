@@ -45,7 +45,7 @@ The files are generated as snapshot-like datasets for comparison work:
 To run the full workflow, use:
 
 ```bash
-python3 main.py
+SPARK_LOCAL_IP=127.0.0.1 SPARK_LOCAL_HOSTNAME=localhost PYSPARK_SUBMIT_ARGS="--conf spark.jars.ivy=$PWD/.ivy2 --packages org.apache.iceberg:iceberg-spark-runtime-3.5_2.12:1.10.1 pyspark-shell" .venv/bin/python main.py
 ```
 
 At startup the script prints the planned snapshot writes into the single Iceberg table:
@@ -63,8 +63,12 @@ environment that already has PySpark plus the matching Iceberg runtime JAR for
 your Spark version:
 
 ```bash
-python3 main.py
+SPARK_LOCAL_IP=127.0.0.1 SPARK_LOCAL_HOSTNAME=localhost PYSPARK_SUBMIT_ARGS="--conf spark.jars.ivy=$PWD/.ivy2 --packages org.apache.iceberg:iceberg-spark-runtime-3.5_2.12:1.10.1 pyspark-shell" .venv/bin/python main.py
 ```
+
+This command sets the local Spark host values and attaches the Iceberg Spark
+runtime package so Spark can load `SparkCatalog` and the Iceberg session
+extensions.
 
 The job creates a local Hadoop-backed Iceberg catalog named `local` and writes
 the `sample_events` table into the `db` namespace under `warehouse/`. After the
