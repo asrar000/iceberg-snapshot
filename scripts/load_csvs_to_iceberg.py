@@ -5,25 +5,15 @@ from pathlib import Path
 try:
     from .sample_dataset import (
         DATE_PATTERN,
-        DEFAULT_CATALOG,
-        DEFAULT_NAMESPACE,
-        DEFAULT_TABLE_NAME,
-        OUTPUT_DIR,
         SCHEMA_FIELDS,
         TIMESTAMP_PATTERN,
-        WAREHOUSE_DIR,
         discover_sample_csv_paths,
     )
 except ImportError:
     from sample_dataset import (
         DATE_PATTERN,
-        DEFAULT_CATALOG,
-        DEFAULT_NAMESPACE,
-        DEFAULT_TABLE_NAME,
-        OUTPUT_DIR,
         SCHEMA_FIELDS,
         TIMESTAMP_PATTERN,
-        WAREHOUSE_DIR,
         discover_sample_csv_paths,
     )
 
